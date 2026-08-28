@@ -14,6 +14,7 @@
       --blue: #0077b6;
       --card-bg: #ffffff;
       --border: #cccccc;
+      --success: #2ec4b6;
     }
     body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; }
     .hidden { display: none !important; }
@@ -51,15 +52,19 @@
     .loser { opacity: 0.2; }
     .tie { opacity: 1; }
 
-    /* Top Right Buttons & Navigation */
+    /* Top Right Controls */
     .top-right { position: fixed; top: 15px; right: 15px; display: flex; gap: 10px; z-index: 100; }
-    .back-btn { background: var(--card-bg); border: 1px solid var(--border); border-radius: 50%; width: 40px; height: 40px; font-size: 20px; display: flex; align-items: center; justify-content: center; padding: 0; }
-    .error-msg { color: var(--red); padding: 10px; font-weight: bold; }
+    .icon-btn { background: var(--card-bg); border: 1px solid var(--border); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+    .icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    
+    /* Verification Status SVG Box */
+    .status-indicator { display: flex; align-items: center; gap: 6px; font-weight: 500; font-size: 0.9em; }
+    .svg-success { width: 20px; height: 20px; stroke: var(--success); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .svg-error { color: var(--red); }
   </style>
 </head>
 <body>
 
-  <!-- CONFIG SCREEN -->
   <div id="config-screen">
     <h2>Pit View Setup</h2>
     <div class="top-right">
@@ -70,24 +75,24 @@
     </div>
 
     <div class="flex-row">
-      <input type="text" id="team-name" placeholder="Team Name" value="Robotics Team">
-      <input type="number" id="team-num" placeholder="Team #" value="12345">
+      <input type="text" id="team-name" placeholder="Team Name (Cosmetic)" value="Robotics Team">
+      <input type="number" id="team-num" placeholder="Team #" value="12345" oninput="verifyEventAndTeam()">
     </div>
 
-    <!-- Media Uploads Section -->
     <div class="flex-row">
       <label>Logo: <input type="file" id="logo-input" accept="image/*" onchange="handleLogoUpload(event)"></label>
       <label>Portfolio (PDF): <input type="file" id="portfolio-input" accept="application/pdf" onchange="handlePortfolioUpload(event)"></label>
     </div>
 
-    <!-- FTC API & Event Settings -->
     <details open>
       <summary>FTC Event Settings</summary>
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
         <div class="flex-row" style="margin-bottom:0;">
-          <input type="text" id="api-season" placeholder="Season (e.g. 2024)" value="2024">
-          <input type="text" id="api-event" placeholder="Event Code (e.g. USCHSMP)" value="USCHSMP">
+          <input type="text" id="api-season" placeholder="Season (e.g. 2024)" value="2024" oninput="verifyEventAndTeam()">
+          <input type="text" id="api-event" placeholder="Event Code (e.g. USCHSMP)" value="USCHSMP" oninput="verifyEventAndTeam()">
+          <button onclick="verifyEventAndTeam()">Check Data</button>
         </div>
+        <div id="verification-status" class="status-indicator"></div>
         <div class="flex-top" style="margin-bottom:0;">
           Find your event code at <a href="https://ftcscout.org/events" target="_blank" style="color:var(--accent);">FTCScout</a>
         </div>
@@ -116,10 +121,14 @@
     <div class="timeline" id="timeline"></div>
   </div>
 
-  <!-- DISPLAY SCREEN -->
   <div id="display-screen" class="hidden">
     <div class="top-right">
-      <button class="back-btn" onclick="editConfig()" title="Back to Config">←</button>
+      <button class="icon-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">
+        <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+      </button>
+      <button class="icon-btn" onclick="editConfig()" title="Back to Config">
+        <svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      </button>
     </div>
     <div id="slide-viewport" style="width:100%; height:100%;"></div>
   </div>
@@ -201,11 +210,61 @@
       root.style.setProperty('--blue', config.colors.blue);
     }
 
+    async function verifyEventAndTeam() {
+      const statusEl = document.getElementById('verification-status');
+      const teamNum = document.getElementById('team-num').value;
+      const season = document.getElementById('api-season').value;
+      const eventCode = document.getElementById('api-event').value;
+
+      if (!teamNum || !eventCode || !season) {
+        statusEl.innerHTML = `<span class="svg-error">Please fill out Team #, Season, and Event Code.</span>`;
+        return false;
+      }
+
+      statusEl.innerHTML = `<span>Checking FTC Data...</span>`;
+
+      try {
+        const res = await fetch(`https://api.ftcscout.org/rest/v1/events/${season}/${eventCode}/matches`);
+        if (!res.ok) {
+          statusEl.innerHTML = `<span class="svg-error">Event '${eventCode}' not found for season ${season}.</span>`;
+          return false;
+        }
+        const matches = await res.json();
+        const hasTeamMatches = matches.some(m => 
+          (m.teams || []).some(t => String(t.teamNumber) === String(teamNum))
+        );
+
+        if (hasTeamMatches || matches.length > 0) {
+          statusEl.innerHTML = `
+            <svg class="svg-success" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span style="color:var(--success)">Event verified (${matches.length} matches indexed)</span>
+          `;
+          return true;
+        } else {
+          statusEl.innerHTML = `<span class="svg-error">Event found, but no matches listed for Team #${teamNum}.</span>`;
+          return false;
+        }
+      } catch (err) {
+        statusEl.innerHTML = `<span class="svg-error">Unable to fetch event data.</span>`;
+        return false;
+      }
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
     function startSlideshow() {
       updateTheme();
       config.teamName = document.getElementById('team-name').value;
       config.teamNum = document.getElementById('team-num').value;
-      config.season = parseInt(document.getElementById('api-season').value);
+      config.season = document.getElementById('api-season').value;
       config.eventCode = document.getElementById('api-event').value;
 
       if (config.slides.length === 0) return alert('Add at least one slide!');
@@ -245,7 +304,7 @@
         }
       } else if (slide.type === 'matches') {
         slideDiv.innerHTML = `<h2>Match Schedule</h2><div class="matches-container"><div class="match-column" id="upcoming-matches"><h3>Upcoming</h3></div><div class="match-column" id="completed-matches"><h3>Completed</h3></div></div>`;
-        fetchFTCScoutMatches();
+        fetchFTCData();
       }
 
       viewport.appendChild(slideDiv);
@@ -265,67 +324,35 @@
       await page.render({ canvasContext: context, viewport }).promise;
     }
 
-    async function fetchFTCScoutMatches() {
+    async function fetchFTCData() {
       const upcomingEl = document.getElementById('upcoming-matches');
       const completedEl = document.getElementById('completed-matches');
 
-      // Direct GraphQL Query to FTCScout Public API (Works cleanly on Github Pages)
-      const query = `
-        query GetEventMatches($season: Int!, $eventCode: String!) {
-          eventByCode(season: $season, code: $eventCode) {
-            matches {
-              matchNum
-              tournamentLevel
-              scores {
-                red { totalPoints }
-                blue { totalPoints }
-              }
-              teams {
-                alliance
-                teamNumber
-              }
-            }
-          }
-        }
-      `;
-
       try {
-        const response = await fetch('https://ftcscout.org/api/graphql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query,
-            variables: { season: config.season, eventCode: config.eventCode }
-          })
-        });
-
-        const result = await response.json();
-        
-        if (result.errors || !result.data || !result.data.eventByCode) {
-          upcomingEl.innerHTML += `<p class='error-msg'>Event code not found for season ${config.season}. Check FTCScout.</p>`;
+        const res = await fetch(`https://api.ftcscout.org/rest/v1/events/${config.season}/${config.eventCode}/matches`);
+        if (!res.ok) {
+          upcomingEl.innerHTML += `<p class="error-msg">Failed loading matches for event ${config.eventCode}.</p>`;
           return;
         }
 
-        const matches = result.data.eventByCode.matches || [];
-
-        // Filter for matches that feature the selected team number
+        const matches = await res.json();
         const teamMatches = matches.filter(m => 
-          m.teams.some(t => String(t.teamNumber) === String(config.teamNum))
+          (m.teams || []).some(t => String(t.teamNumber) === String(config.teamNum))
         );
 
         if (teamMatches.length === 0) {
-          upcomingEl.innerHTML += `<p>No matches found for Team #${config.teamNum} at event ${config.eventCode}.</p>`;
+          upcomingEl.innerHTML += `<p>No matches scheduled for Team #${config.teamNum} yet.</p>`;
           return;
         }
 
         teamMatches.forEach(m => {
-          const redAlliance = m.teams.filter(t => t.alliance.toLowerCase() === 'red').map(t => t.teamNumber);
-          const blueAlliance = m.teams.filter(t => t.alliance.toLowerCase() === 'blue').map(t => t.teamNumber);
+          const redAlliance = (m.teams || []).filter(t => t.alliance === 'Red').map(t => t.teamNumber);
+          const blueAlliance = (m.teams || []).filter(t => t.alliance === 'Blue').map(t => t.teamNumber);
           
-          const redScore = m.scores ? m.scores.red.totalPoints : null;
-          const blueScore = m.scores ? m.scores.blue.totalPoints : null;
-
+          const redScore = m.scores ? m.scores.redPoints : null;
+          const blueScore = m.scores ? m.scores.bluePoints : null;
           const isCompleted = redScore !== null && blueScore !== null;
+          
           let winner = null;
           if (isCompleted) {
             if (redScore > blueScore) winner = 'red';
@@ -344,7 +371,7 @@
           }
 
           card.innerHTML = `
-            <strong>${m.tournamentLevel} Match ${m.matchNum}</strong>
+            <strong>${m.matchNum ? 'Match ' + m.matchNum : 'Qual Match'}</strong>
             <div class="alliance ${redClass}"><span>Red: ${redAlliance.join(', ')}</span><span>${redScore ?? '-'}</span></div>
             <div class="alliance ${blueClass}"><span>Blue: ${blueAlliance.join(', ')}</span><span>${blueScore ?? '-'}</span></div>
           `;
@@ -354,7 +381,7 @@
         });
 
       } catch (err) {
-        upcomingEl.innerHTML += `<p class='error-msg'>Connection error: ${err.message}</p>`;
+        upcomingEl.innerHTML += `<p class="error-msg">Unable to connect to match server.</p>`;
       }
     }
 
@@ -374,7 +401,7 @@
         config = JSON.parse(event.target.result);
         const newSeason = prompt("Update Season:", config.season || "2024");
         const newEvent = prompt("Update Event Code:", config.eventCode || "");
-        if (newSeason) config.season = parseInt(newSeason);
+        if (newSeason) config.season = newSeason;
         if (newEvent) config.eventCode = newEvent;
         
         document.getElementById('team-name').value = config.teamName || "";
@@ -382,6 +409,7 @@
         document.getElementById('api-season').value = config.season || "";
         document.getElementById('api-event').value = config.eventCode || "";
         renderTimeline();
+        verifyEventAndTeam();
       };
       reader.readAsText(file);
     }
