@@ -55,7 +55,7 @@
     /* Controls Header */
     .top-right { position: fixed; top: 15px; right: 15px; display: flex; gap: 10px; z-index: 100; }
     .icon-btn { background: var(--card-bg); border: 1px solid var(--border); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
-    .icon-btn svg { width: 18px; height: 18px; fill: none; stroke: stroke-width; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     
     /* Verification Status SVG Bar */
     .status-indicator { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 0.9em; margin-top: 8px; }
@@ -367,4 +367,59 @@
           if (isCompleted) {
             if (redScore > blueScore) winner = 'red';
             else if (blueScore > redScore) winner = 'blue';
-            else winner = 'tie
+            else winner = 'tie';
+          }
+
+          const card = document.createElement('div');
+          card.className = 'match-card';
+          
+          let redClass = "red-alliance", blueClass = "blue-alliance";
+          if (isCompleted) {
+            if (winner === 'red') { redClass += " winner"; blueClass += " loser"; }
+            else if (winner === 'blue') { blueClass += " winner"; redClass += " loser"; }
+            else { redClass += " tie"; blueClass += " tie"; }
+          }
+
+          card.innerHTML = `
+            <strong>${m.matchNum ? 'Match ' + m.matchNum : 'Qual Match'}</strong>
+            <div class="alliance ${redClass}"><span>Red: ${redAlliance.join(', ')}</span><span>${redScore ?? '-'}</span></div>
+            <div class="alliance ${blueClass}"><span>Blue: ${blueAlliance.join(', ')}</span><span>${blueScore ?? '-'}</span></div>
+          `;
+
+          if (!isCompleted && upcomingEl) upcomingEl.appendChild(card);
+          else if (completedEl) completedEl.appendChild(card);
+        });
+
+      } catch (err) {
+        upcomingEl.innerHTML += `<p class="error-text">Unable to load match data.</p>`;
+      }
+    }
+
+    function exportConfig() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `pit_view_config.json`;
+      a.click();
+    }
+
+    function importConfig(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        config = JSON.parse(event.target.result);
+        document.getElementById('team-name').value = config.teamName || "";
+        document.getElementById('team-num').value = config.teamNum || "";
+        document.getElementById('api-season').value = config.season || 2024;
+        document.getElementById('api-event').value = config.eventCode || "";
+        renderTimeline();
+        autoVerifyData();
+      };
+      reader.readAsText(file);
+    }
+
+    window.addEventListener('DOMContentLoaded', performVerification);
+  </script>
+</body>
+</html>
