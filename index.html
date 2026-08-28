@@ -4,415 +4,458 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pit View</title>
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script src="https://unpkg.com/@mui/material@5.15.0/umd/material-ui.production.min.js" crossorigin></script>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+
   <style>
-    :root {
-      --bg: #f8f9fa; 
-      --text: #1a1a1a; 
-      --accent: #9073da; 
-      --red: #e63946; 
-      --blue: #0077b6;
-      --card-bg: #ffffff;
-      --border: #cccccc;
-      --success: #2ec4b6;
-    }
-    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; }
+    body { margin: 0; padding: 0; font-family: 'Roboto', sans-serif; background-color: #f8f9fa; overflow: hidden; }
     .hidden { display: none !important; }
-    
-    /* Config Screen */
-    #config-screen { padding: 20px; max-width: 800px; margin: 0 auto; overflow-y: auto; height: 100vh; box-sizing: border-box; }
-    .flex-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
-    .flex-top { font-size: 0.9em; margin-bottom: 20px; color: #555; }
-    input, button, select { background: #ffffff; color: var(--text); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; font-size: 14px; }
-    button { cursor: pointer; background: #f0f0f0; transition: background 0.2s; }
-    button:hover { background: #e0e0e0; }
-    
-    /* Dropdown Sections */
-    details { border: 1px solid var(--border); padding: 10px; border-radius: 6px; margin-bottom: 15px; background: var(--card-bg); }
-    summary { font-weight: bold; cursor: pointer; }
-
-    /* Timeline */
-    .timeline { display: flex; gap: 15px; overflow-x: auto; padding: 10px 0; }
-    .slide-card { background: var(--card-bg); border: 1px solid var(--border); padding: 10px; border-radius: 6px; width: 150px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    
-    /* Display Mode */
-    #display-screen { width: 100vw; height: 100vh; position: relative; background: var(--bg); }
-    .slide { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; padding: 40px; }
-    
-    /* Matches Styling */
-    .matches-container { display: flex; width: 100%; height: 100%; gap: 20px; }
-    .match-column { flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 5px; }
-    .match-card { background: var(--card-bg); border: 1px solid var(--border); padding: 12px; border-radius: 6px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .alliance { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 4px; font-weight: bold; }
-    
-    /* Alliance Colors & Opacity */
-    .red-alliance { background: var(--red); color: #fff; }
-    .blue-alliance { background: var(--blue); color: #fff; }
-    .winner { border: 2px solid var(--accent); opacity: 1 !important; box-shadow: 0 0 8px var(--accent); }
-    .loser { opacity: 0.2; }
+    .alliance-card { padding: 8px 12px; border-radius: 4px; font-weight: bold; color: #fff; display: flex; justify-content: space-between; }
+    .winner { border: 2px solid #9073da; opacity: 1 !important; box-shadow: 0 0 10px rgba(144, 115, 218, 0.5); }
+    .loser { opacity: 0.25; }
     .tie { opacity: 1; }
-
-    /* Top Right Controls */
-    .top-right { position: fixed; top: 15px; right: 15px; display: flex; gap: 10px; z-index: 100; }
-    .icon-btn { background: var(--card-bg); border: 1px solid var(--border); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
-    .icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    
-    /* Verification Status SVG Box */
-    .status-indicator { display: flex; align-items: center; gap: 6px; font-weight: 500; font-size: 0.9em; }
-    .svg-success { width: 20px; height: 20px; stroke: var(--success); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-    .svg-error { color: var(--red); }
   </style>
 </head>
 <body>
 
-  <div id="config-screen">
-    <h2>Pit View Setup</h2>
-    <div class="top-right">
-      <button onclick="exportConfig()">Export</button>
-      <button onclick="document.getElementById('import-file').click()">Import</button>
-      <input type="file" id="import-file" class="hidden" accept=".json" onchange="importConfig(event)">
-      <button onclick="startSlideshow()" style="background: var(--accent); color: #fff; font-weight: bold; border: none;">Finish</button>
-    </div>
+  <div id="root"></div>
 
-    <div class="flex-row">
-      <input type="text" id="team-name" placeholder="Team Name (Cosmetic)" value="Robotics Team">
-      <input type="number" id="team-num" placeholder="Team #" value="12345" oninput="verifyEventAndTeam()">
-    </div>
-
-    <div class="flex-row">
-      <label>Logo: <input type="file" id="logo-input" accept="image/*" onchange="handleLogoUpload(event)"></label>
-      <label>Portfolio (PDF): <input type="file" id="portfolio-input" accept="application/pdf" onchange="handlePortfolioUpload(event)"></label>
-    </div>
-
-    <details open>
-      <summary>FTC Event Settings</summary>
-      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
-        <div class="flex-row" style="margin-bottom:0;">
-          <input type="text" id="api-season" placeholder="Season (e.g. 2024)" value="2024" oninput="verifyEventAndTeam()">
-          <input type="text" id="api-event" placeholder="Event Code (e.g. USCHSMP)" value="USCHSMP" oninput="verifyEventAndTeam()">
-          <button onclick="verifyEventAndTeam()">Check Data</button>
-        </div>
-        <div id="verification-status" class="status-indicator"></div>
-        <div class="flex-top" style="margin-bottom:0;">
-          Find your event code at <a href="https://ftcscout.org/events" target="_blank" style="color:var(--accent);">FTCScout</a>
-        </div>
-      </div>
-    </details>
-
-    <details>
-      <summary>Colors</summary>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-        <label>Background: <input type="color" id="c-bg" value="#f8f9fa"></label>
-        <label>Text: <input type="color" id="c-text" value="#1a1a1a"></label>
-        <label>Accent: <input type="color" id="c-accent" value="#9073da"></label>
-        <label>Red: <input type="color" id="c-red" value="#e63946"></label>
-        <label>Blue: <input type="color" id="c-blue" value="#0077b6"></label>
-      </div>
-    </details>
-
-    <h3>Timeline Setup</h3>
-    <div class="flex-row">
-      <button onclick="addSlide('logo')">+ Logo</button>
-      <button onclick="addSlide('text')">+ Text</button>
-      <button onclick="addSlide('matches')">+ Matches</button>
-      <button onclick="addSlide('portfolio')">+ Portfolio</button>
-    </div>
-
-    <div class="timeline" id="timeline"></div>
-  </div>
-
-  <div id="display-screen" class="hidden">
-    <div class="top-right">
-      <button class="icon-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">
-        <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
-      </button>
-      <button class="icon-btn" onclick="editConfig()" title="Back to Config">
-        <svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-      </button>
-    </div>
-    <div id="slide-viewport" style="width:100%; height:100%;"></div>
-  </div>
-
-  <script>
+  <script type="text/babel">
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-    let config = {
-      teamName: "Robotics Team", teamNum: "12345", season: "2024", eventCode: "USCHSMP",
-      logo: "", portfolioPdf: "",
-      colors: { bg: "#f8f9fa", text: "#1a1a1a", accent: "#9073da", red: "#e63946", blue: "#0077b6" },
-      slides: []
-    };
-    let currentSlideIdx = 0;
-    let slideTimer = null;
+    const {
+      Container, Box, Typography, TextField, Button, Accordion, AccordionSummary,
+      AccordionDetails, Paper, Grid, IconButton, Tooltip, CircularProgress, Card, CardContent
+    } = MaterialUI;
 
-    function handleLogoUpload(e) {
-      const reader = new FileReader();
-      reader.onload = () => config.logo = reader.result;
-      if (e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
-    }
-
-    function handlePortfolioUpload(e) {
-      const reader = new FileReader();
-      reader.onload = () => config.portfolioPdf = reader.result;
-      if (e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
-    }
-
-    function addSlide(type) {
-      config.slides.push({ id: Date.now(), type, duration: 10, content: "" });
-      renderTimeline();
-    }
-
-    function removeSlide(idx) {
-      config.slides.splice(idx, 1);
-      renderTimeline();
-    }
-
-    function moveSlide(idx, dir) {
-      if (idx + dir < 0 || idx + dir >= config.slides.length) return;
-      const temp = config.slides[idx];
-      config.slides[idx] = config.slides[idx + dir];
-      config.slides[idx + dir] = temp;
-      renderTimeline();
-    }
-
-    function renderTimeline() {
-      const el = document.getElementById('timeline');
-      el.innerHTML = '';
-      config.slides.forEach((slide, i) => {
-        const card = document.createElement('div');
-        card.className = 'slide-card';
-        card.innerHTML = `
-          <strong>${slide.type.toUpperCase()}</strong>
-          ${slide.type === 'text' ? `<input type="text" value="${slide.content}" placeholder="Slide text" onchange="config.slides[${i}].content=this.value">` : ''}
-          <label>Secs: <input type="number" value="${slide.duration}" style="width:50px" onchange="config.slides[${i}].duration=parseInt(this.value)"></label>
-          <div>
-            <button onclick="moveSlide(${i}, -1)">←</button>
-            <button onclick="moveSlide(${i}, 1)">→</button>
-            <button onclick="removeSlide(${i})" style="color:var(--red)">X</button>
-          </div>
-        `;
-        el.appendChild(card);
+    function PitViewApp() {
+      const [config, setConfig] = React.useState({
+        teamName: "Robotics Team",
+        teamNum: "12345",
+        season: "2024",
+        eventCode: "USCHSMP",
+        logo: "",
+        portfolioPdf: "",
+        colors: { bg: "#f8f9fa", text: "#1a1a1a", accent: "#9073da", red: "#e63946", blue: "#0077b6" },
+        slides: []
       });
-    }
 
-    function updateTheme() {
-      const root = document.documentElement;
-      config.colors.bg = document.getElementById('c-bg').value;
-      config.colors.text = document.getElementById('c-text').value;
-      config.colors.accent = document.getElementById('c-accent').value;
-      config.colors.red = document.getElementById('c-red').value;
-      config.colors.blue = document.getElementById('c-blue').value;
-      
-      root.style.setProperty('--bg', config.colors.bg);
-      root.style.setProperty('--text', config.colors.text);
-      root.style.setProperty('--accent', config.colors.accent);
-      root.style.setProperty('--red', config.colors.red);
-      root.style.setProperty('--blue', config.colors.blue);
-    }
+      const [isDisplaying, setIsDisplaying] = React.useState(false);
+      const [currentSlideIdx, setCurrentSlideIdx] = React.useState(0);
+      const [verificationStatus, setVerificationStatus] = React.useState(null);
+      const [verifying, setVerifying] = React.useState(false);
+      const [matchData, setMatchData] = React.useState({ upcoming: [], completed: [] });
 
-    async function verifyEventAndTeam() {
-      const statusEl = document.getElementById('verification-status');
-      const teamNum = document.getElementById('team-num').value;
-      const season = document.getElementById('api-season').value;
-      const eventCode = document.getElementById('api-event').value;
-
-      if (!teamNum || !eventCode || !season) {
-        statusEl.innerHTML = `<span class="svg-error">Please fill out Team #, Season, and Event Code.</span>`;
-        return false;
-      }
-
-      statusEl.innerHTML = `<span>Checking FTC Data...</span>`;
-
-      try {
-        const res = await fetch(`https://api.ftcscout.org/rest/v1/events/${season}/${eventCode}/matches`);
-        if (!res.ok) {
-          statusEl.innerHTML = `<span class="svg-error">Event '${eventCode}' not found for season ${season}.</span>`;
-          return false;
-        }
-        const matches = await res.json();
-        const hasTeamMatches = matches.some(m => 
-          (m.teams || []).some(t => String(t.teamNumber) === String(teamNum))
-        );
-
-        if (hasTeamMatches || matches.length > 0) {
-          statusEl.innerHTML = `
-            <svg class="svg-success" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            <span style="color:var(--success)">Event verified (${matches.length} matches indexed)</span>
-          `;
-          return true;
-        } else {
-          statusEl.innerHTML = `<span class="svg-error">Event found, but no matches listed for Team #${teamNum}.</span>`;
-          return false;
-        }
-      } catch (err) {
-        statusEl.innerHTML = `<span class="svg-error">Unable to fetch event data.</span>`;
-        return false;
-      }
-    }
-
-    function toggleFullscreen() {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen();
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        }
-      }
-    }
-
-    function startSlideshow() {
-      updateTheme();
-      config.teamName = document.getElementById('team-name').value;
-      config.teamNum = document.getElementById('team-num').value;
-      config.season = document.getElementById('api-season').value;
-      config.eventCode = document.getElementById('api-event').value;
-
-      if (config.slides.length === 0) return alert('Add at least one slide!');
-
-      document.getElementById('config-screen').classList.add('hidden');
-      document.getElementById('display-screen').classList.remove('hidden');
-      currentSlideIdx = 0;
-      showNextSlide();
-    }
-
-    function editConfig() {
-      clearTimeout(slideTimer);
-      document.getElementById('display-screen').classList.add('hidden');
-      document.getElementById('config-screen').classList.remove('hidden');
-    }
-
-    async function showNextSlide() {
-      if (currentSlideIdx >= config.slides.length) currentSlideIdx = 0;
-      const slide = config.slides[currentSlideIdx];
-      const viewport = document.getElementById('slide-viewport');
-      viewport.innerHTML = '';
-
-      const slideDiv = document.createElement('div');
-      slideDiv.className = 'slide';
-
-      if (slide.type === 'logo') {
-        slideDiv.innerHTML = config.logo ? `<img src="${config.logo}" style="max-height:60vh; max-width:80vw;">` : `<h1>${config.teamName}</h1>`;
-      } else if (slide.type === 'text') {
-        slideDiv.innerHTML = `<h1 style="font-size:3em; text-align:center;">${slide.content}</h1>`;
-      } else if (slide.type === 'portfolio') {
-        if (config.portfolioPdf) {
-          const canvas = document.createElement('canvas');
-          slideDiv.appendChild(canvas);
-          renderPDF(config.portfolioPdf, canvas);
-        } else {
-          slideDiv.innerHTML = '<h2>No Portfolio PDF Uploaded</h2>';
-        }
-      } else if (slide.type === 'matches') {
-        slideDiv.innerHTML = `<h2>Match Schedule</h2><div class="matches-container"><div class="match-column" id="upcoming-matches"><h3>Upcoming</h3></div><div class="match-column" id="completed-matches"><h3>Completed</h3></div></div>`;
-        fetchFTCData();
-      }
-
-      viewport.appendChild(slideDiv);
-      slideTimer = setTimeout(() => {
-        currentSlideIdx++;
-        showNextSlide();
-      }, slide.duration * 1000);
-    }
-
-    async function renderPDF(url, canvas) {
-      const pdf = await pdfjsLib.getDocument(url).promise;
-      const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 1.2 });
-      const context = canvas.getContext('2d');
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-      await page.render({ canvasContext: context, viewport }).promise;
-    }
-
-    async function fetchFTCData() {
-      const upcomingEl = document.getElementById('upcoming-matches');
-      const completedEl = document.getElementById('completed-matches');
-
-      try {
-        const res = await fetch(`https://api.ftcscout.org/rest/v1/events/${config.season}/${config.eventCode}/matches`);
-        if (!res.ok) {
-          upcomingEl.innerHTML += `<p class="error-msg">Failed loading matches for event ${config.eventCode}.</p>`;
-          return;
-        }
-
-        const matches = await res.json();
-        const teamMatches = matches.filter(m => 
-          (m.teams || []).some(t => String(t.teamNumber) === String(config.teamNum))
-        );
-
-        if (teamMatches.length === 0) {
-          upcomingEl.innerHTML += `<p>No matches scheduled for Team #${config.teamNum} yet.</p>`;
-          return;
-        }
-
-        teamMatches.forEach(m => {
-          const redAlliance = (m.teams || []).filter(t => t.alliance === 'Red').map(t => t.teamNumber);
-          const blueAlliance = (m.teams || []).filter(t => t.alliance === 'Blue').map(t => t.teamNumber);
-          
-          const redScore = m.scores ? m.scores.redPoints : null;
-          const blueScore = m.scores ? m.scores.bluePoints : null;
-          const isCompleted = redScore !== null && blueScore !== null;
-          
-          let winner = null;
-          if (isCompleted) {
-            if (redScore > blueScore) winner = 'red';
-            else if (blueScore > redScore) winner = 'blue';
-            else winner = 'tie';
+      // Handle Verification of Team and Event Data
+      const handleVerify = async () => {
+        setVerifying(true);
+        setVerificationStatus(null);
+        try {
+          const res = await fetch(`https://api.ftcscout.org/rest/v1/events/${config.season}/${config.eventCode}/matches`);
+          if (!res.ok) {
+            setVerificationStatus({ success: false, msg: `Event '${config.eventCode}' not found for ${config.season}.` });
+            setVerifying(false);
+            return;
           }
+          const matches = await res.json();
+          const teamMatches = matches.filter(m => 
+            (m.teams || []).some(t => String(t.teamNumber) === String(config.teamNum))
+          );
 
-          const card = document.createElement('div');
-          card.className = 'match-card';
-          
-          let redClass = "red-alliance", blueClass = "blue-alliance";
-          if (isCompleted) {
-            if (winner === 'red') { redClass += " winner"; blueClass += " loser"; }
-            else if (winner === 'blue') { blueClass += " winner"; redClass += " loser"; }
-            else { redClass += " tie"; blueClass += " tie"; }
+          if (teamMatches.length > 0 || matches.length > 0) {
+            setVerificationStatus({ 
+              success: true, 
+              msg: `Verified! ${matches.length} matches indexed (${teamMatches.length} for #${config.teamNum}).` 
+            });
+          } else {
+            setVerificationStatus({ success: false, msg: `Event valid, but team #${config.teamNum} is not listed yet.` });
           }
-
-          card.innerHTML = `
-            <strong>${m.matchNum ? 'Match ' + m.matchNum : 'Qual Match'}</strong>
-            <div class="alliance ${redClass}"><span>Red: ${redAlliance.join(', ')}</span><span>${redScore ?? '-'}</span></div>
-            <div class="alliance ${blueClass}"><span>Blue: ${blueAlliance.join(', ')}</span><span>${blueScore ?? '-'}</span></div>
-          `;
-
-          if (!isCompleted && upcomingEl) upcomingEl.appendChild(card);
-          else if (completedEl) completedEl.appendChild(card);
-        });
-
-      } catch (err) {
-        upcomingEl.innerHTML += `<p class="error-msg">Unable to connect to match server.</p>`;
-      }
-    }
-
-    function exportConfig() {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config));
-      const a = document.createElement('a');
-      a.href = dataStr;
-      a.download = `pit_view_config.json`;
-      a.click();
-    }
-
-    function importConfig(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        config = JSON.parse(event.target.result);
-        const newSeason = prompt("Update Season:", config.season || "2024");
-        const newEvent = prompt("Update Event Code:", config.eventCode || "");
-        if (newSeason) config.season = newSeason;
-        if (newEvent) config.eventCode = newEvent;
-        
-        document.getElementById('team-name').value = config.teamName || "";
-        document.getElementById('team-num').value = config.teamNum || "";
-        document.getElementById('api-season').value = config.season || "";
-        document.getElementById('api-event').value = config.eventCode || "";
-        renderTimeline();
-        verifyEventAndTeam();
+        } catch (err) {
+          setVerificationStatus({ success: false, msg: `Connection error validating FTC data.` });
+        }
+        setVerifying(false);
       };
-      reader.readAsText(file);
+
+      // Add Slide to Timeline
+      const addSlide = (type) => {
+        setConfig(prev => ({
+          ...prev,
+          slides: [...prev.slides, { id: Date.now(), type, duration: 10, content: "" }]
+        }));
+      };
+
+      // Slide Timeline Actions
+      const moveSlide = (idx, dir) => {
+        const target = idx + dir;
+        if (target < 0 || target >= config.slides.length) return;
+        const updated = [...config.slides];
+        const temp = updated[idx];
+        updated[idx] = updated[target];
+        updated[target] = temp;
+        setConfig(prev => ({ ...prev, slides: updated }));
+      };
+
+      const removeSlide = (idx) => {
+        setConfig(prev => ({ ...prev, slides: prev.slides.filter((_, i) => i !== idx) }));
+      };
+
+      // Image / PDF Handling
+      const handleFileUpload = (e, key) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => setConfig(prev => ({ ...prev, [key]: reader.result }));
+        reader.readAsDataURL(file);
+      };
+
+      // Slide Cycle Timer
+      React.useEffect(() => {
+        if (!isDisplaying || config.slides.length === 0) return;
+        const currentSlide = config.slides[currentSlideIdx];
+        const timer = setTimeout(() => {
+          setCurrentSlideIdx((prev) => (prev + 1) % config.slides.length);
+        }, (currentSlide?.duration || 10) * 1000);
+
+        return () => clearTimeout(timer);
+      }, [isDisplaying, currentSlideIdx, config.slides]);
+
+      // Fetch Matches when Match Slide Displays
+      React.useEffect(() => {
+        if (!isDisplaying) return;
+        const slide = config.slides[currentSlideIdx];
+        if (slide?.type === 'matches') {
+          fetchMatches();
+        }
+      }, [isDisplaying, currentSlideIdx]);
+
+      const fetchMatches = async () => {
+        try {
+          const res = await fetch(`https://api.ftcscout.org/rest/v1/events/${config.season}/${config.eventCode}/matches`);
+          if (!res.ok) return;
+          const matches = await res.json();
+          
+          const teamMatches = matches.filter(m => 
+            (m.teams || []).some(t => String(t.teamNumber) === String(config.teamNum))
+          );
+
+          const upcoming = [];
+          const completed = [];
+
+          teamMatches.forEach(m => {
+            const redTeams = (m.teams || []).filter(t => t.alliance === 'Red').map(t => t.teamNumber);
+            const blueTeams = (m.teams || []).filter(t => t.alliance === 'Blue').map(t => t.teamNumber);
+            const redScore = m.scores?.redPoints ?? null;
+            const blueScore = m.scores?.bluePoints ?? null;
+
+            const isDone = redScore !== null && blueScore !== null;
+            const item = {
+              num: m.matchNum || m.matchNumber || 'Qual',
+              redTeams, blueTeams, redScore, blueScore, isDone,
+              winner: redScore > blueScore ? 'red' : blueScore > redScore ? 'blue' : 'tie'
+            };
+
+            if (isDone) completed.push(item);
+            else upcoming.push(item);
+          });
+
+          setMatchData({ upcoming, completed });
+        } catch (e) {
+          console.error("Failed to load match updates", e);
+        }
+      };
+
+      // Export / Import JSON Configuration
+      const exportConfig = () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config));
+        const a = document.createElement('a');
+        a.href = dataStr;
+        a.download = `pit_view_config.json`;
+        a.click();
+      };
+
+      const importConfig = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const imported = JSON.parse(event.target.result);
+          const newSeason = prompt("Confirm/Update Season:", imported.season || "2024");
+          const newEvent = prompt("Confirm/Update Event Code:", imported.eventCode || "");
+          if (newSeason) imported.season = newSeason;
+          if (newEvent) imported.eventCode = newEvent;
+          setConfig(imported);
+        };
+        reader.readAsText(file);
+      };
+
+      // PDF Renderer Component
+      const PDFRender = ({ data }) => {
+        const canvasRef = React.useRef(null);
+        React.useEffect(() => {
+          if (!data || !canvasRef.current) return;
+          pdfjsLib.getDocument(data).promise.then(pdf => {
+            pdf.getPage(1).then(page => {
+              const viewport = page.getViewport({ scale: 1.2 });
+              const canvas = canvasRef.current;
+              const context = canvas.getContext('2d');
+              canvas.height = viewport.height;
+              canvas.width = viewport.width;
+              page.render({ canvasContext: context, viewport });
+            });
+          });
+        }, [data]);
+        return <canvas ref={canvasRef} />;
+      };
+
+      return (
+        <Box sx={{ width: '100vw', height: '100vh', bgcolor: config.colors.bg, color: config.colors.text }}>
+          
+          {/* CONFIGURATION UI SCREEN */}
+          {!isDisplaying ? (
+            <Container maxWidth="md" sx={{ py: 4, height: '100vh', overflowY: 'auto' }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                <Typography variant="h4" fontWeight="bold" color="primary">Pit View Setup</Typography>
+                <Box display="flex" gap={1}>
+                  <Button variant="outlined" onClick={exportConfig}>Export</Button>
+                  <Button variant="outlined" component="label">
+                    Import
+                    <input type="file" hidden accept=".json" onChange={importConfig} />
+                  </Button>
+                  <Button 
+                    variant="contained" 
+                    sx={{ bgcolor: '#9073da', '&:hover': { bgcolor: '#7b5ec7' } }} 
+                    onClick={() => { if(config.slides.length) setIsDisplaying(true); else alert("Add a slide first!"); }}
+                  >
+                    Finish
+                  </Button>
+                </Box>
+              </Box>
+
+              <Grid container spacing={2} mb={2}>
+                <Grid item xs={6}>
+                  <TextField fullWidth label="Team Name (Cosmetic)" value={config.teamName} onChange={e => setConfig({...config, teamName: e.target.value})} />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField fullWidth label="Team #" type="number" value={config.teamNum} onChange={e => setConfig({...config, teamNum: e.target.value})} />
+                </Grid>
+              </Grid>
+
+              <Grid container spacing={2} mb={2}>
+                <Grid item xs={6}>
+                  <Button variant="contained" component="label" fullWidth>
+                    Upload Logo
+                    <input type="file" hidden accept="image/*" onChange={e => handleFileUpload(e, 'logo')} />
+                  </Button>
+                </Grid>
+                <Grid item xs={6}>
+                  <Button variant="contained" component="label" fullWidth>
+                    Upload Portfolio (PDF)
+                    <input type="file" hidden accept="application/pdf" onChange={e => handleFileUpload(e, 'portfolioPdf')} />
+                  </Button>
+                </Grid>
+              </Grid>
+
+              {/* Event Settings Accordion */}
+              <Accordion defaultExpanded sx={{ mb: 2 }}>
+                <AccordionSummary expandIcon={<span class="material-icons">expand_more</span>}>
+                  <Typography fontWeight="bold">FTC Event Settings</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={4}>
+                      <TextField fullWidth label="Season (e.g. 2024)" value={config.season} onChange={e => setConfig({...config, season: e.target.value})} />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <TextField fullWidth label="Event Code (e.g. USCHSMP)" value={config.eventCode} onChange={e => setConfig({...config, eventCode: e.target.value})} />
+                    </Grid>
+                    <Grid item xs={4}>
+                      <Button variant="contained" onClick={handleVerify} disabled={verifying} fullWidth>
+                        {verifying ? <CircularProgress size={24} /> : "Check Data"}
+                      </Button>
+                    </Grid>
+                  </Grid>
+
+                  {/* SVG Checkmark or Inline Verification Status */}
+                  {verificationStatus && (
+                    <Box display="flex" alignItems="center" gap={1} mt={2}>
+                      {verificationStatus.success ? (
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2ec4b6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      ) : (
+                        <span class="material-icons" style={{ color: config.colors.red }}>error</span>
+                      )}
+                      <Typography variant="body2" color={verificationStatus.success ? '#2ec4b6' : 'error'}>
+                        {verificationStatus.msg}
+                      </Typography>
+                    </Box>
+                  )}
+
+                  <Typography variant="caption" color="textSecondary" display="block" mt={1}>
+                    Find codes on <a href="https://ftcscout.org/events" target="_blank" style={{ color: '#9073da' }}>FTCScout</a>
+                  </Typography>
+                </AccordionDetails>
+              </Accordion>
+
+              {/* Theme Colors Accordion */}
+              <Accordion sx={{ mb: 3 }}>
+                <AccordionSummary expandIcon={<span class="material-icons">expand_more</span>}>
+                  <Typography fontWeight="bold">Colors</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <Grid container spacing={2}>
+                    {Object.keys(config.colors).map(key => (
+                      <Grid item xs={4} key={key}>
+                        <Typography variant="caption" style={{ textTransform: 'capitalize' }}>{key}</Typography>
+                        <input 
+                          type="color" 
+                          value={config.colors[key]} 
+                          onChange={e => setConfig({...config, colors: {...config.colors, [key]: e.target.value}})}
+                          style={{ width: '100%', height: '40px', border: 'none', cursor: 'pointer' }}
+                        />
+                      </Grid>
+                    ))}
+                  </Grid>
+                </AccordionDetails>
+              </Accordion>
+
+              {/* Timeline Setup */}
+              <Typography variant="h6" mb={1}>Timeline Setup</Typography>
+              <Box display="flex" gap={1} mb={2}>
+                <Button variant="outlined" onClick={() => addSlide('logo')}>+ Logo</Button>
+                <Button variant="outlined" onClick={() => addSlide('text')}>+ Text</Button>
+                <Button variant="outlined" onClick={() => addSlide('matches')}>+ Matches</Button>
+                <Button variant="outlined" onClick={() => addSlide('portfolio')}>+ Portfolio</Button>
+              </Box>
+
+              <Box display="flex" gap={2} sx={{ overflowX: 'auto', pb: 2 }}>
+                {config.slides.map((slide, i) => (
+                  <Paper key={slide.id} sx={{ p: 2, minWidth: 160, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Typography fontWeight="bold" textTransform="uppercase" variant="body2">{slide.type}</Typography>
+                    {slide.type === 'text' && (
+                      <TextField 
+                        size="small" 
+                        placeholder="Content" 
+                        value={slide.content} 
+                        onChange={e => {
+                          const updated = [...config.slides];
+                          updated[i].content = e.target.value;
+                          setConfig({...config, slides: updated});
+                        }} 
+                      />
+                    )}
+                    <TextField 
+                      size="small" 
+                      type="number" 
+                      label="Secs" 
+                      value={slide.duration} 
+                      onChange={e => {
+                        const updated = [...config.slides];
+                        updated[i].duration = parseInt(e.target.value) || 5;
+                        setConfig({...config, slides: updated});
+                      }} 
+                    />
+                    <Box display="flex" justifyContent="space-between">
+                      <IconButton size="small" onClick={() => moveSlide(i, -1)}><span class="material-icons">arrow_back</span></IconButton>
+                      <IconButton size="small" onClick={() => moveSlide(i, 1)}><span class="material-icons">arrow_forward</span></IconButton>
+                      <IconButton size="small" color="error" onClick={() => removeSlide(i)}><span class="material-icons">delete</span></IconButton>
+                    </Box>
+                  </Paper>
+                ))}
+              </Box>
+            </Container>
+          ) : (
+            
+            /* DISPLAY SLIDESHOW SCREEN */
+            <Box position="relative" width="100vw" height="100vh">
+              {/* Controls Overlay */}
+              <Box position="absolute" top={16} right={16} zIndex={1000} display="flex" gap={1}>
+                <IconButton 
+                  onClick={() => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()}
+                  sx={{ bgcolor: 'white', '&:hover': { bgcolor: '#eee' } }}
+                >
+                  <span class="material-icons">fullscreen</span>
+                </IconButton>
+                <IconButton 
+                  onClick={() => setIsDisplaying(false)} 
+                  sx={{ bgcolor: 'white', '&:hover': { bgcolor: '#eee' } }}
+                >
+                  <span class="material-icons">arrow_back</span>
+                </IconButton>
+              </Box>
+
+              {/* Current Slide Display */}
+              <Box width="100%" height="100%" display="flex" justifyContent="center" alignItems="center" p={4} boxSizing="border-box">
+                {config.slides[currentSlideIdx]?.type === 'logo' && (
+                  config.logo ? <img src={config.logo} style={{ maxHeight: '70vh', maxWidth: '80vw' }} /> : <Typography variant="h1">{config.teamName}</Typography>
+                )}
+
+                {config.slides[currentSlideIdx]?.type === 'text' && (
+                  <Typography variant="h2" align="center">{config.slides[currentSlideIdx]?.content}</Typography>
+                )}
+
+                {config.slides[currentSlideIdx]?.type === 'portfolio' && (
+                  config.portfolioPdf ? <PDFRender data={config.portfolioPdf} /> : <Typography variant="h4">No PDF Uploaded</Typography>
+                )}
+
+                {config.slides[currentSlideIdx]?.type === 'matches' && (
+                  <Box width="100%" height="100%" display="flex" flexDirection="column">
+                    <Typography variant="h4" mb={2} align="center">Match Schedule</Typography>
+                    <Grid container spacing={3} sx={{ flexGrow: 1, overflow: 'hidden' }}>
+                      <Grid item xs={6} sx={{ height: '100%', overflowY: 'auto' }}>
+                        <Typography variant="h6" mb={1}>Upcoming</Typography>
+                        {matchData.upcoming.map((m, idx) => (
+                          <Card key={idx} sx={{ mb: 1 }}>
+                            <CardContent>
+                              <Typography variant="subtitle2">Match {m.num}</Typography>
+                              <Box className="alliance-card" sx={{ bgcolor: config.colors.red, mb: 0.5 }}>
+                                <span>Red: {m.redTeams.join(', ')}</span><span>-</span>
+                              </Box>
+                              <Box className="alliance-card" sx={{ bgcolor: config.colors.blue }}>
+                                <span>Blue: {m.blueTeams.join(', ')}</span><span>-</span>
+                              </Box>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </Grid>
+                      <Grid item xs={6} sx={{ height: '100%', overflowY: 'auto' }}>
+                        <Typography variant="h6" mb={1}>Completed</Typography>
+                        {matchData.completed.map((m, idx) => (
+                          <Card key={idx} sx={{ mb: 1 }}>
+                            <CardContent>
+                              <Typography variant="subtitle2">Match {m.num}</Typography>
+                              <Box className={`alliance-card ${m.winner === 'red' ? 'winner' : m.winner === 'blue' ? 'loser' : 'tie'}`} sx={{ bgcolor: config.colors.red, mb: 0.5 }}>
+                                <span>Red: {m.redTeams.join(', ')}</span><span>{m.redScore}</span>
+                              </Box>
+                              <Box className={`alliance-card ${m.winner === 'blue' ? 'winner' : m.winner === 'red' ? 'loser' : 'tie'}`} sx={{ bgcolor: config.colors.blue }}>
+                                <span>Blue: {m.blueTeams.join(', ')}</span><span>{m.blueScore}</span>
+                              </Box>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          )}
+
+        </Box>
+      );
     }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<PitViewApp />);
   </script>
 </body>
 </html>
