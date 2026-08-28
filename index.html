@@ -80,17 +80,13 @@
       <label>Portfolio (PDF): <input type="file" id="portfolio-input" accept="application/pdf" onchange="handlePortfolioUpload(event)"></label>
     </div>
 
-    <!-- FTC API Credentials & Event Info -->
+    <!-- FTC API & Event Settings -->
     <details open>
-      <summary>FTC API & Event Settings</summary>
+      <summary>FTC Event Settings</summary>
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
         <div class="flex-row" style="margin-bottom:0;">
-          <input type="text" id="api-username" placeholder="API Username">
-          <input type="password" id="api-token" placeholder="API Auth Token">
-        </div>
-        <div class="flex-row" style="margin-bottom:0;">
-          <input type="text" id="api-season" placeholder="Season (e.g. 2025)" value="2025">
-          <input type="text" id="api-event" placeholder="Event Code (e.g. USTXHOU)" value="USTXHOU">
+          <input type="text" id="api-season" placeholder="Season (e.g. 2024)" value="2024">
+          <input type="text" id="api-event" placeholder="Event Code (e.g. USCHSMP)" value="USCHSMP">
         </div>
         <div class="flex-top" style="margin-bottom:0;">
           Find your event code at <a href="https://ftcscout.org/events" target="_blank" style="color:var(--accent);">FTCScout</a>
@@ -132,8 +128,8 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
     let config = {
-      teamName: "Robotics Team", teamNum: "12345", season: "2025", eventCode: "USTXHOU",
-      apiUsername: "", apiToken: "", logo: "", portfolioPdf: "",
+      teamName: "Robotics Team", teamNum: "12345", season: "2024", eventCode: "USCHSMP",
+      logo: "", portfolioPdf: "",
       colors: { bg: "#f8f9fa", text: "#1a1a1a", accent: "#9073da", red: "#e63946", blue: "#0077b6" },
       slides: []
     };
@@ -209,10 +205,8 @@
       updateTheme();
       config.teamName = document.getElementById('team-name').value;
       config.teamNum = document.getElementById('team-num').value;
-      config.season = document.getElementById('api-season').value;
+      config.season = parseInt(document.getElementById('api-season').value);
       config.eventCode = document.getElementById('api-event').value;
-      config.apiUsername = document.getElementById('api-username').value;
-      config.apiToken = document.getElementById('api-token').value;
 
       if (config.slides.length === 0) return alert('Add at least one slide!');
 
@@ -251,7 +245,7 @@
         }
       } else if (slide.type === 'matches') {
         slideDiv.innerHTML = `<h2>Match Schedule</h2><div class="matches-container"><div class="match-column" id="upcoming-matches"><h3>Upcoming</h3></div><div class="match-column" id="completed-matches"><h3>Completed</h3></div></div>`;
-        fetchFTCMatchData();
+        fetchFTCScoutMatches();
       }
 
       viewport.appendChild(slideDiv);
@@ -271,55 +265,71 @@
       await page.render({ canvasContext: context, viewport }).promise;
     }
 
-    async function fetchFTCMatchData() {
+    async function fetchFTCScoutMatches() {
       const upcomingEl = document.getElementById('upcoming-matches');
       const completedEl = document.getElementById('completed-matches');
 
-      if (!config.apiUsername || !config.apiToken) {
-        upcomingEl.innerHTML += "<p class='error-msg'>Missing API Username or Auth Token in setup settings.</p>";
-        return;
-      }
-
-      const auth = btoa(`${config.apiUsername}:${config.apiToken}`);
-      const targetUrl = `https://ftc-api.firstinspires.org/v2.0/${config.season}/matches/${config.eventCode}`;
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+      // Direct GraphQL Query to FTCScout Public API (Works cleanly on Github Pages)
+      const query = `
+        query GetEventMatches($season: Int!, $eventCode: String!) {
+          eventByCode(season: $season, code: $eventCode) {
+            matches {
+              matchNum
+              tournamentLevel
+              scores {
+                red { totalPoints }
+                blue { totalPoints }
+              }
+              teams {
+                alliance
+                teamNumber
+              }
+            }
+          }
+        }
+      `;
 
       try {
-        const response = await fetch(proxyUrl, {
-          headers: { 'Authorization': `Basic ${auth}` }
+        const response = await fetch('https://ftcscout.org/api/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            variables: { season: config.season, eventCode: config.eventCode }
+          })
         });
 
-        if (!response.ok) {
-          upcomingEl.innerHTML += `<p class='error-msg'>API Request Failed: ${response.status} ${response.statusText}</p>`;
-          return;
-        }
-
-        const data = await response.json();
+        const result = await response.json();
         
-        if (!data.matches || data.matches.length === 0) {
-          upcomingEl.innerHTML += "<p>No matches found for this event code.</p>";
+        if (result.errors || !result.data || !result.data.eventByCode) {
+          upcomingEl.innerHTML += `<p class='error-msg'>Event code not found for season ${config.season}. Check FTCScout.</p>`;
           return;
         }
 
-        // Filter matches specifically involving the configured team number
-        const teamMatches = data.matches.filter(m => 
+        const matches = result.data.eventByCode.matches || [];
+
+        // Filter for matches that feature the selected team number
+        const teamMatches = matches.filter(m => 
           m.teams.some(t => String(t.teamNumber) === String(config.teamNum))
         );
 
         if (teamMatches.length === 0) {
-          upcomingEl.innerHTML += `<p>No matches scheduled for Team #${config.teamNum} yet.</p>`;
+          upcomingEl.innerHTML += `<p>No matches found for Team #${config.teamNum} at event ${config.eventCode}.</p>`;
           return;
         }
 
         teamMatches.forEach(m => {
-          const redAlliance = m.teams.filter(t => t.station.startsWith('Red')).map(t => t.teamNumber);
-          const blueAlliance = m.teams.filter(t => t.station.startsWith('Blue')).map(t => t.teamNumber);
+          const redAlliance = m.teams.filter(t => t.alliance.toLowerCase() === 'red').map(t => t.teamNumber);
+          const blueAlliance = m.teams.filter(t => t.alliance.toLowerCase() === 'blue').map(t => t.teamNumber);
           
-          const isCompleted = m.scoreRedFinal !== null && m.scoreBlueFinal !== null;
+          const redScore = m.scores ? m.scores.red.totalPoints : null;
+          const blueScore = m.scores ? m.scores.blue.totalPoints : null;
+
+          const isCompleted = redScore !== null && blueScore !== null;
           let winner = null;
           if (isCompleted) {
-            if (m.scoreRedFinal > m.scoreBlueFinal) winner = 'red';
-            else if (m.scoreBlueFinal > m.scoreRedFinal) winner = 'blue';
+            if (redScore > blueScore) winner = 'red';
+            else if (blueScore > redScore) winner = 'blue';
             else winner = 'tie';
           }
 
@@ -334,14 +344,15 @@
           }
 
           card.innerHTML = `
-            <strong>${m.description || 'Match ' + m.matchNumber}</strong>
-            <div class="alliance ${redClass}"><span>Red: ${redAlliance.join(', ')}</span><span>${m.scoreRedFinal ?? '-'}</span></div>
-            <div class="alliance ${blueClass}"><span>Blue: ${blueAlliance.join(', ')}</span><span>${m.scoreBlueFinal ?? '-'}</span></div>
+            <strong>${m.tournamentLevel} Match ${m.matchNum}</strong>
+            <div class="alliance ${redClass}"><span>Red: ${redAlliance.join(', ')}</span><span>${redScore ?? '-'}</span></div>
+            <div class="alliance ${blueClass}"><span>Blue: ${blueAlliance.join(', ')}</span><span>${blueScore ?? '-'}</span></div>
           `;
 
           if (!isCompleted && upcomingEl) upcomingEl.appendChild(card);
           else if (completedEl) completedEl.appendChild(card);
         });
+
       } catch (err) {
         upcomingEl.innerHTML += `<p class='error-msg'>Connection error: ${err.message}</p>`;
       }
@@ -361,17 +372,15 @@
       const reader = new FileReader();
       reader.onload = (event) => {
         config = JSON.parse(event.target.result);
-        const newSeason = prompt("Update Season:", config.season || "2025");
+        const newSeason = prompt("Update Season:", config.season || "2024");
         const newEvent = prompt("Update Event Code:", config.eventCode || "");
-        if (newSeason) config.season = newSeason;
+        if (newSeason) config.season = parseInt(newSeason);
         if (newEvent) config.eventCode = newEvent;
         
         document.getElementById('team-name').value = config.teamName || "";
         document.getElementById('team-num').value = config.teamNum || "";
         document.getElementById('api-season').value = config.season || "";
         document.getElementById('api-event').value = config.eventCode || "";
-        document.getElementById('api-username').value = config.apiUsername || "";
-        document.getElementById('api-token').value = config.apiToken || "";
         renderTimeline();
       };
       reader.readAsText(file);
