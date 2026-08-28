@@ -1,10 +1,313 @@
-<html>
-  <head>
-    <title>Under Construction - Techt Robotics</title>
-  </head>
-  <body>
-    <h1>
-      This site is under construction
-    </h1>
-  </body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pit View</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <style>
+    :root {
+      --bg: #121212; --text: #ffffff; --accent: #ffb700; --red: #ff4444; --blue: #4488ff;
+    }
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; }
+    .hidden { display: none !important; }
+    
+    /* Config Screen */
+    #config-screen { padding: 20px; max-width: 800px; margin: 0 auto; overflow-y: auto; height: 100vh; box-sizing: border-box; }
+    .flex-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+    .flex-top { font-size: 0.9em; margin-bottom: 20px; }
+    input, button, select { background: #222; color: #fff; border: 1px solid #444; padding: 8px 12px; border-radius: 4px; }
+    button { cursor: pointer; background: #333; }
+    button:hover { background: #444; }
+    
+    /* Dropdown Colors */
+    details { border: 1px solid #444; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
+    
+    /* Timeline */
+    .timeline { display: flex; gap: 15px; overflow-x: auto; padding: 10px 0; }
+    .slide-card { background: #222; border: 1px solid #444; padding: 10px; border-radius: 6px; width: 140px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+    
+    /* Display Mode */
+    #display-screen { width: 100vw; height: 100vh; position: relative; }
+    .slide { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; padding: 40px; }
+    
+    /* Matches Styling */
+    .matches-container { display: flex; width: 100%; height: 100%; gap: 20px; }
+    .match-column { flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 5px; }
+    .match-card { background: rgba(255,255,255,0.05); padding: 12px; border-radius: 6px; display: flex; flex-direction: column; gap: 6px; }
+    .alliance { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 4px; font-weight: bold; }
+    
+    /* Alliance Colors & Opacity */
+    .red-alliance { background: var(--red); color: #fff; }
+    .blue-alliance { background: var(--blue); color: #fff; }
+    .winner { border: 2px solid var(--accent); opacity: 1 !important; }
+    .loser { opacity: 0.2; }
+    .tie { opacity: 1; }
+
+    /* Top Right Buttons */
+    .top-right { position: fixed; top: 15px; right: 15px; display: flex; gap: 10px; z-index: 100; }
+  </style>
+</head>
+<body>
+
+  <div id="config-screen">
+    <h2>Pit View Setup</h2>
+    <div class="top-right">
+      <button onclick="exportConfig()">Export</button>
+      <button onclick="document.getElementById('import-file').click()">Import</button>
+      <input type="file" id="import-file" class="hidden" accept=".json" onchange="importConfig(event)">
+      <button onclick="startSlideshow()" style="background: var(--accent); color: #000; font-weight: bold;">Finish</button>
+    </div>
+
+    <div class="flex-row">
+      <input type="text" id="team-name" placeholder="Team Name" value="Robotics Team">
+      <input type="number" id="team-num" placeholder="Team #" value="12345">
+    </div>
+
+    <div class="flex-row">
+      <input type="text" id="api-season" placeholder="Season (e.g. 2025)" value="2025">
+      <input type="text" id="api-event" placeholder="Event Code (e.g. USTXHOU)" value="USTXHOU">
+    </div>
+    <div class="flex-top">
+      Find your event code at <a href="https://ftcscout.org/events" target="_blank" style="color:var(--accent);">FTCScout</a>
+    </div>
+
+    <div class="flex-row">
+      <label>Logo Upload: </label>
+      <input type="file" id="logo-input" accept="image/*" onchange="handleLogoUpload(event)">
+    </div>
+
+    <details>
+      <summary>Colors</summary>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+        <label>Background: <input type="color" id="c-bg" value="#121212"></label>
+        <label>Text: <input type="color" id="c-text" value="#ffffff"></label>
+        <label>Accent: <input type="color" id="c-accent" value="#ffb700"></label>
+        <label>Red: <input type="color" id="c-red" value="#ff4444"></label>
+        <label>Blue: <input type="color" id="c-blue" value="#4488ff"></label>
+      </div>
+    </details>
+
+    <h3>Timeline Setup</h3>
+    <div class="flex-row">
+      <button onclick="addSlide('logo')">+ Logo</button>
+      <button onclick="addSlide('text')">+ Text</button>
+      <button onclick="addSlide('matches')">+ Matches</button>
+      <button onclick="addSlide('portfolio')">+ Portfolio (PDF)</button>
+    </div>
+
+    <div class="timeline" id="timeline"></div>
+  </div>
+
+  <div id="display-screen" class="hidden">
+    <div class="top-right">
+      <button onclick="editConfig()">Back</button>
+    </div>
+    <div id="slide-viewport" style="width:100%; height:100%;"></div>
+  </div>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+    let config = {
+      teamName: "Robotics Team", teamNum: "12345", season: "2025", eventCode: "USTXHOU",
+      logo: "", colors: { bg: "#121212", text: "#ffffff", accent: "#ffb700", red: "#ff4444", blue: "#4488ff" },
+      slides: []
+    };
+    let currentSlideIdx = 0;
+    let slideTimer = null;
+
+    function handleLogoUpload(e) {
+      const reader = new FileReader();
+      reader.onload = () => config.logo = reader.result;
+      if (e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
+    }
+
+    function addSlide(type) {
+      config.slides.push({ id: Date.now(), type, duration: 10, content: "", pdfData: "" });
+      renderTimeline();
+    }
+
+    function removeSlide(idx) {
+      config.slides.splice(idx, 1);
+      renderTimeline();
+    }
+
+    function moveSlide(idx, dir) {
+      if (idx + dir < 0 || idx + dir >= config.slides.length) return;
+      const temp = config.slides[idx];
+      config.slides[idx] = config.slides[idx + dir];
+      config.slides[idx + dir] = temp;
+      renderTimeline();
+    }
+
+    function renderTimeline() {
+      const el = document.getElementById('timeline');
+      el.innerHTML = '';
+      config.slides.forEach((slide, i) => {
+        const card = document.createElement('div');
+        card.className = 'slide-card';
+        card.innerHTML = `
+          <strong>${slide.type.toUpperCase()}</strong>
+          ${slide.type === 'text' ? `<input type="text" value="${slide.content}" placeholder="Slide text" onchange="config.slides[${i}].content=this.value">` : ''}
+          ${slide.type === 'portfolio' ? `<input type="file" accept="application/pdf" onchange="uploadPDF(event, ${i})">` : ''}
+          <label>Secs: <input type="number" value="${slide.duration}" style="width:50px" onchange="config.slides[${i}].duration=parseInt(this.value)"></label>
+          <div>
+            <button onclick="moveSlide(${i}, -1)">←</button>
+            <button onclick="moveSlide(${i}, 1)">→</button>
+            <button onclick="removeSlide(${i})" style="color:red">X</button>
+          </div>
+        `;
+        el.appendChild(card);
+      });
+    }
+
+    function uploadPDF(e, idx) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => config.slides[idx].pdfData = reader.result;
+      reader.readAsDataURL(file);
+    }
+
+    function updateTheme() {
+      const root = document.documentElement;
+      config.colors.bg = document.getElementById('c-bg').value;
+      config.colors.text = document.getElementById('c-text').value;
+      config.colors.accent = document.getElementById('c-accent').value;
+      config.colors.red = document.getElementById('c-red').value;
+      config.colors.blue = document.getElementById('c-blue').value;
+      
+      root.style.setProperty('--bg', config.colors.bg);
+      root.style.setProperty('--text', config.colors.text);
+      root.style.setProperty('--accent', config.colors.accent);
+      root.style.setProperty('--red', config.colors.red);
+      root.style.setProperty('--blue', config.colors.blue);
+    }
+
+    function startSlideshow() {
+      updateTheme();
+      config.teamName = document.getElementById('team-name').value;
+      config.teamNum = document.getElementById('team-num').value;
+      config.season = document.getElementById('api-season').value;
+      config.eventCode = document.getElementById('api-event').value;
+
+      if (config.slides.length === 0) return alert('Add at least one slide!');
+
+      document.getElementById('config-screen').classList.add('hidden');
+      document.getElementById('display-screen').classList.remove('hidden');
+      currentSlideIdx = 0;
+      showNextSlide();
+    }
+
+    function editConfig() {
+      clearTimeout(slideTimer);
+      document.getElementById('display-screen').classList.add('hidden');
+      document.getElementById('config-screen').classList.remove('hidden');
+    }
+
+    async function showNextSlide() {
+      if (currentSlideIdx >= config.slides.length) currentSlideIdx = 0;
+      const slide = config.slides[currentSlideIdx];
+      const viewport = document.getElementById('slide-viewport');
+      viewport.innerHTML = '';
+
+      const slideDiv = document.createElement('div');
+      slideDiv.className = 'slide';
+
+      if (slide.type === 'logo') {
+        slideDiv.innerHTML = config.logo ? `<img src="${config.logo}" style="max-height:60vh; max-width:80vw;">` : `<h1>${config.teamName}</h1>`;
+      } else if (slide.type === 'text') {
+        slideDiv.innerHTML = `<h1 style="font-size:3em; text-align:center;">${slide.content}</h1>`;
+      } else if (slide.type === 'portfolio') {
+        if (slide.pdfData) {
+          const canvas = document.createElement('canvas');
+          slideDiv.appendChild(canvas);
+          renderPDF(slide.pdfData, canvas);
+        } else {
+          slideDiv.innerHTML = '<h2>No PDF Uploaded</h2>';
+        }
+      } else if (slide.type === 'matches') {
+        slideDiv.innerHTML = `<h2>Match Schedule</h2><div class="matches-container"><div class="match-column" id="upcoming-matches"><h3>Upcoming</h3></div><div class="match-column" id="completed-matches"><h3>Completed</h3></div></div>`;
+        fetchMatchData();
+      }
+
+      viewport.appendChild(slideDiv);
+      slideTimer = setTimeout(() => {
+        currentSlideIdx++;
+        showNextSlide();
+      }, slide.duration * 1000);
+    }
+
+    async function renderPDF(url, canvas) {
+      const pdf = await pdfjsLib.getDocument(url).promise;
+      const page = await pdf.getPage(1);
+      const viewport = page.getViewport({ scale: 1.2 });
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      await page.render({ canvasContext: context, viewport }).promise;
+    }
+
+    async function fetchMatchData() {
+      // Mock render demonstration structure; Replace standard URL string fetch call with serverless proxy or token headers local handling
+      const matches = [
+        { name: "Quals 1", red: ["12345", "99999"], blue: ["11111", "22222"], redScore: 120, blueScore: 90, status: "completed", winner: "red" },
+        { name: "Quals 4", red: ["12345", "33333"], blue: ["44444", "55555"], redScore: 0, blueScore: 0, status: "upcoming", winner: null }
+      ];
+
+      const upcomingEl = document.getElementById('upcoming-matches');
+      const completedEl = document.getElementById('completed-matches');
+
+      matches.forEach(m => {
+        const card = document.createElement('div');
+        card.className = 'match-card';
+        
+        let redClass = "red-alliance", blueClass = "blue-alliance";
+        if (m.status === 'completed') {
+          if (m.winner === 'red') { redClass += " winner"; blueClass += " loser"; }
+          else if (m.winner === 'blue') { blueClass += " winner"; redClass += " loser"; }
+          else { redClass += " tie"; blueClass += " tie"; }
+        }
+
+        card.innerHTML = `
+          <strong>${m.name}</strong>
+          <div class="alliance ${redClass}"><span>Red: ${m.red.join(', ')}</span><span>${m.redScore}</span></div>
+          <div class="alliance ${blueClass}"><span>Blue: ${m.blue.join(', ')}</span><span>${m.blueScore}</span></div>
+        `;
+
+        if (m.status === 'upcoming' && upcomingEl) upcomingEl.appendChild(card);
+        else if (completedEl) completedEl.appendChild(card);
+      });
+    }
+
+    function exportConfig() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `pit_view_config.json`;
+      a.click();
+    }
+
+    function importConfig(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        config = JSON.parse(event.target.result);
+        const newSeason = prompt("Update Season:", config.season || "2025");
+        const newEvent = prompt("Update Event Code:", config.eventCode || "");
+        if (newSeason) config.season = newSeason;
+        if (newEvent) config.eventCode = newEvent;
+        
+        document.getElementById('team-name').value = config.teamName;
+        document.getElementById('team-num').value = config.teamNum;
+        document.getElementById('api-season').value = config.season;
+        document.getElementById('api-event').value = config.eventCode;
+        renderTimeline();
+      };
+      reader.readAsText(file);
+    }
+  </script>
+</body>
 </html>
