@@ -54,10 +54,12 @@
     /* Top Right Buttons & Navigation */
     .top-right { position: fixed; top: 15px; right: 15px; display: flex; gap: 10px; z-index: 100; }
     .back-btn { background: var(--card-bg); border: 1px solid var(--border); border-radius: 50%; width: 40px; height: 40px; font-size: 20px; display: flex; align-items: center; justify-content: center; padding: 0; }
+    .error-msg { color: var(--red); padding: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
 
+  <!-- CONFIG SCREEN -->
   <div id="config-screen">
     <h2>Pit View Setup</h2>
     <div class="top-right">
@@ -72,11 +74,13 @@
       <input type="number" id="team-num" placeholder="Team #" value="12345">
     </div>
 
+    <!-- Media Uploads Section -->
     <div class="flex-row">
       <label>Logo: <input type="file" id="logo-input" accept="image/*" onchange="handleLogoUpload(event)"></label>
       <label>Portfolio (PDF): <input type="file" id="portfolio-input" accept="application/pdf" onchange="handlePortfolioUpload(event)"></label>
     </div>
 
+    <!-- FTC API Credentials & Event Info -->
     <details open>
       <summary>FTC API & Event Settings</summary>
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
@@ -116,6 +120,7 @@
     <div class="timeline" id="timeline"></div>
   </div>
 
+  <!-- DISPLAY SCREEN -->
   <div id="display-screen" class="hidden">
     <div class="top-right">
       <button class="back-btn" onclick="editConfig()" title="Back to Config">←</button>
@@ -271,22 +276,42 @@
       const completedEl = document.getElementById('completed-matches');
 
       if (!config.apiUsername || !config.apiToken) {
-        upcomingEl.innerHTML += "<p>Please add API Credentials in setup.</p>";
+        upcomingEl.innerHTML += "<p class='error-msg'>Missing API Username or Auth Token in setup settings.</p>";
         return;
       }
 
       const auth = btoa(`${config.apiUsername}:${config.apiToken}`);
-      const url = `https://ftc-api.firstinspires.org/v2.0/${config.season}/matches/${config.eventCode}`;
+      const targetUrl = `https://ftc-api.firstinspires.org/v2.0/${config.season}/matches/${config.eventCode}`;
+      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
       try {
-        const response = await fetch(url, {
+        const response = await fetch(proxyUrl, {
           headers: { 'Authorization': `Basic ${auth}` }
         });
+
+        if (!response.ok) {
+          upcomingEl.innerHTML += `<p class='error-msg'>API Request Failed: ${response.status} ${response.statusText}</p>`;
+          return;
+        }
+
         const data = await response.json();
         
-        if (!data.matches) return;
+        if (!data.matches || data.matches.length === 0) {
+          upcomingEl.innerHTML += "<p>No matches found for this event code.</p>";
+          return;
+        }
 
-        data.matches.forEach(m => {
+        // Filter matches specifically involving the configured team number
+        const teamMatches = data.matches.filter(m => 
+          m.teams.some(t => String(t.teamNumber) === String(config.teamNum))
+        );
+
+        if (teamMatches.length === 0) {
+          upcomingEl.innerHTML += `<p>No matches scheduled for Team #${config.teamNum} yet.</p>`;
+          return;
+        }
+
+        teamMatches.forEach(m => {
           const redAlliance = m.teams.filter(t => t.station.startsWith('Red')).map(t => t.teamNumber);
           const blueAlliance = m.teams.filter(t => t.station.startsWith('Blue')).map(t => t.teamNumber);
           
@@ -315,10 +340,10 @@
           `;
 
           if (!isCompleted && upcomingEl) upcomingEl.appendChild(card);
-          else if (isCompleted && completedEl) completedEl.appendChild(card);
+          else if (completedEl) completedEl.appendChild(card);
         });
       } catch (err) {
-        upcomingEl.innerHTML += "<p>Error loading FTC matches.</p>";
+        upcomingEl.innerHTML += `<p class='error-msg'>Connection error: ${err.message}</p>`;
       }
     }
 
