@@ -213,16 +213,6 @@
       root.style.setProperty('--blue', config.colors.blue);
     }
 
-    // FTCScout GraphQL query function to handle CORS without proxies
-    async function queryFTCScout(graphqlQuery, variables) {
-      const res = await fetch('https://ftcscout.org/api/graphql', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: graphqlQuery, variables })
-      });
-      return await res.json();
-    }
-
     function autoVerifyData() {
       clearTimeout(verifyTimeout);
       verifyTimeout = setTimeout(performVerification, 600);
@@ -241,23 +231,9 @@
 
       statusEl.innerHTML = `<span>Validating event & team presence...</span>`;
 
-      const checkQuery = `
-        query VerifyData($season: Int!, $eventCode: String!) {
-          eventByCode(season: $season, code: $eventCode) {
-            name
-            matches {
-              teams {
-                teamNumber
-              }
-            }
-          }
-        }
-      `;
-
       try {
-        const result = await queryFTCScout(checkQuery, { season, eventCode });
-
-        if (!result.data || !result.data.eventByCode) {
+        const res = await fetch(`https://api.ftcscout.org/v1/events/${season}/${eventCode}/matches`);
+        if (!res.ok) {
           statusEl.innerHTML = `
             <svg class="svg-error-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
             <span class="error-text">Event code '${eventCode}' was not found for season ${season}.</span>
@@ -265,8 +241,8 @@
           return;
         }
 
-        const matches = result.data.eventByCode.matches || [];
-        const teamPresent = matches.some(m => m.teams.some(t => String(t.teamNumber) === String(teamNum)));
+        const matches = await res.json();
+        const teamPresent = matches.some(m => (m.teams || []).some(t => String(t.teamNumber) === String(teamNum)));
 
         if (matches.length > 0 && teamPresent) {
           statusEl.innerHTML = `
@@ -276,7 +252,7 @@
         } else if (matches.length > 0) {
           statusEl.innerHTML = `
             <svg class="svg-success" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            <span class="success-text">Event verified (${matches.length} matches indexed), but Team #${teamNum} is not in a match yet.</span>
+            <span class="success-text">Event verified (${matches.length} matches indexed), but Team #${teamNum} is not listed in a match yet.</span>
           `;
         } else {
           statusEl.innerHTML = `
@@ -362,39 +338,16 @@
       const upcomingEl = document.getElementById('upcoming-matches');
       const completedEl = document.getElementById('completed-matches');
 
-      const matchesQuery = `
-        query GetMatches($season: Int!, $eventCode: String!) {
-          eventByCode(season: $season, code: $eventCode) {
-            matches {
-              matchNum
-              tournamentLevel
-              scores {
-                red { totalPoints }
-                blue { totalPoints }
-              }
-              teams {
-                alliance
-                teamNumber
-              }
-            }
-          }
-        }
-      `;
-
       try {
-        const result = await queryFTCScout(matchesQuery, {
-          season: config.season,
-          eventCode: config.eventCode
-        });
-
-        if (!result.data || !result.data.eventByCode) {
+        const res = await fetch(`https://api.ftcscout.org/v1/events/${config.season}/${config.eventCode}/matches`);
+        if (!res.ok) {
           upcomingEl.innerHTML += `<p class="error-text">Event code not found on FTCScout.</p>`;
           return;
         }
 
-        const matches = result.data.eventByCode.matches || [];
+        const matches = await res.json();
         const teamMatches = matches.filter(m => 
-          m.teams.some(t => String(t.teamNumber) === String(config.teamNum))
+          (m.teams || []).some(t => String(t.teamNumber) === String(config.teamNum))
         );
 
         if (teamMatches.length === 0) {
@@ -403,71 +356,15 @@
         }
 
         teamMatches.forEach(m => {
-          const redAlliance = m.teams.filter(t => t.alliance.toLowerCase() === 'red').map(t => t.teamNumber);
-          const blueAlliance = m.teams.filter(t => t.alliance.toLowerCase() === 'blue').map(t => t.teamNumber);
+          const redAlliance = (m.teams || []).filter(t => t.alliance === 'Red').map(t => t.teamNumber);
+          const blueAlliance = (m.teams || []).filter(t => t.alliance === 'Blue').map(t => t.teamNumber);
           
-          const redScore = m.scores ? m.scores.red.totalPoints : null;
-          const blueScore = m.scores ? m.scores.blue.totalPoints : null;
+          const redScore = m.scores ? m.scores.redPoints : null;
+          const blueScore = m.scores ? m.scores.bluePoints : null;
           const isCompleted = redScore !== null && blueScore !== null;
           
           let winner = null;
           if (isCompleted) {
             if (redScore > blueScore) winner = 'red';
             else if (blueScore > redScore) winner = 'blue';
-            else winner = 'tie';
-          }
-
-          const card = document.createElement('div');
-          card.className = 'match-card';
-          
-          let redClass = "red-alliance", blueClass = "blue-alliance";
-          if (isCompleted) {
-            if (winner === 'red') { redClass += " winner"; blueClass += " loser"; }
-            else if (winner === 'blue') { blueClass += " winner"; redClass += " loser"; }
-            else { redClass += " tie"; blueClass += " tie"; }
-          }
-
-          card.innerHTML = `
-            <strong>${m.tournamentLevel} Match ${m.matchNum}</strong>
-            <div class="alliance ${redClass}"><span>Red: ${redAlliance.join(', ')}</span><span>${redScore ?? '-'}</span></div>
-            <div class="alliance ${blueClass}"><span>Blue: ${blueAlliance.join(', ')}</span><span>${blueScore ?? '-'}</span></div>
-          `;
-
-          if (!isCompleted && upcomingEl) upcomingEl.appendChild(card);
-          else if (completedEl) completedEl.appendChild(card);
-        });
-
-      } catch (err) {
-        upcomingEl.innerHTML += `<p class="error-text">Unable to load match data.</p>`;
-      }
-    }
-
-    function exportConfig() {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config));
-      const a = document.createElement('a');
-      a.href = dataStr;
-      a.download = `pit_view_config.json`;
-      a.click();
-    }
-
-    function importConfig(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        config = JSON.parse(event.target.result);
-        document.getElementById('team-name').value = config.teamName || "";
-        document.getElementById('team-num').value = config.teamNum || "";
-        document.getElementById('api-season').value = config.season || 2024;
-        document.getElementById('api-event').value = config.eventCode || "";
-        renderTimeline();
-        autoVerifyData();
-      };
-      reader.readAsText(file);
-    }
-
-    // Run verification on initial page load
-    window.addEventListener('DOMContentLoaded', performVerification);
-  </script>
-</body>
-</html>
+            else winner = 'tie
