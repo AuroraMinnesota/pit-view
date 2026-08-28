@@ -7,45 +7,53 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
   <style>
     :root {
-      --bg: #f5f5f5; --text: #ffffff; --accent: #9073da; --red: #ff4444; --blue: #4488ff;
+      --bg: #f8f9fa; 
+      --text: #1a1a1a; 
+      --accent: #9073da; 
+      --red: #e63946; 
+      --blue: #0077b6;
+      --card-bg: #ffffff;
+      --border: #cccccc;
     }
     body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; }
     .hidden { display: none !important; }
     
     /* Config Screen */
     #config-screen { padding: 20px; max-width: 800px; margin: 0 auto; overflow-y: auto; height: 100vh; box-sizing: border-box; }
-    .flex-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
-    .flex-top { font-size: 0.9em; margin-bottom: 20px; }
-    input, button, select { background: #222; color: #fff; border: 1px solid #444; padding: 8px 12px; border-radius: 4px; }
-    button { cursor: pointer; background: #333; }
-    button:hover { background: #444; }
+    .flex-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .flex-top { font-size: 0.9em; margin-bottom: 20px; color: #555; }
+    input, button, select { background: #ffffff; color: var(--text); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+    button { cursor: pointer; background: #f0f0f0; transition: background 0.2s; }
+    button:hover { background: #e0e0e0; }
     
-    /* Dropdown Colors */
-    details { border: 1px solid #444; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
-    
+    /* Dropdown Sections */
+    details { border: 1px solid var(--border); padding: 10px; border-radius: 6px; margin-bottom: 15px; background: var(--card-bg); }
+    summary { font-weight: bold; cursor: pointer; }
+
     /* Timeline */
     .timeline { display: flex; gap: 15px; overflow-x: auto; padding: 10px 0; }
-    .slide-card { background: #222; border: 1px solid #444; padding: 10px; border-radius: 6px; width: 140px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+    .slide-card { background: var(--card-bg); border: 1px solid var(--border); padding: 10px; border-radius: 6px; width: 150px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     
     /* Display Mode */
-    #display-screen { width: 100vw; height: 100vh; position: relative; }
+    #display-screen { width: 100vw; height: 100vh; position: relative; background: var(--bg); }
     .slide { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; padding: 40px; }
     
     /* Matches Styling */
     .matches-container { display: flex; width: 100%; height: 100%; gap: 20px; }
     .match-column { flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 5px; }
-    .match-card { background: rgba(255,255,255,0.05); padding: 12px; border-radius: 6px; display: flex; flex-direction: column; gap: 6px; }
+    .match-card { background: var(--card-bg); border: 1px solid var(--border); padding: 12px; border-radius: 6px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .alliance { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 4px; font-weight: bold; }
     
     /* Alliance Colors & Opacity */
     .red-alliance { background: var(--red); color: #fff; }
     .blue-alliance { background: var(--blue); color: #fff; }
-    .winner { border: 2px solid var(--accent); opacity: 1 !important; }
+    .winner { border: 2px solid var(--accent); opacity: 1 !important; box-shadow: 0 0 8px var(--accent); }
     .loser { opacity: 0.2; }
     .tie { opacity: 1; }
 
-    /* Top Right Buttons */
+    /* Top Right Buttons & Navigation */
     .top-right { position: fixed; top: 15px; right: 15px; display: flex; gap: 10px; z-index: 100; }
+    .back-btn { background: var(--card-bg); border: 1px solid var(--border); border-radius: 50%; width: 40px; height: 40px; font-size: 20px; display: flex; align-items: center; justify-content: center; padding: 0; }
   </style>
 </head>
 <body>
@@ -56,7 +64,7 @@
       <button onclick="exportConfig()">Export</button>
       <button onclick="document.getElementById('import-file').click()">Import</button>
       <input type="file" id="import-file" class="hidden" accept=".json" onchange="importConfig(event)">
-      <button onclick="startSlideshow()" style="background: var(--accent); color: #000; font-weight: bold;">Finish</button>
+      <button onclick="startSlideshow()" style="background: var(--accent); color: #fff; font-weight: bold; border: none;">Finish</button>
     </div>
 
     <div class="flex-row">
@@ -65,26 +73,35 @@
     </div>
 
     <div class="flex-row">
-      <input type="text" id="api-season" placeholder="Season (e.g. 2025)" value="2025">
-      <input type="text" id="api-event" placeholder="Event Code (e.g. USTXHOU)" value="USTXHOU">
-    </div>
-    <div class="flex-top">
-      Find your event code at <a href="https://ftcscout.org/events" target="_blank" style="color:var(--accent);">FTCScout</a>
+      <label>Logo: <input type="file" id="logo-input" accept="image/*" onchange="handleLogoUpload(event)"></label>
+      <label>Portfolio (PDF): <input type="file" id="portfolio-input" accept="application/pdf" onchange="handlePortfolioUpload(event)"></label>
     </div>
 
-    <div class="flex-row">
-      <label>Logo Upload: </label>
-      <input type="file" id="logo-input" accept="image/*" onchange="handleLogoUpload(event)">
-    </div>
+    <details open>
+      <summary>FTC API & Event Settings</summary>
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+        <div class="flex-row" style="margin-bottom:0;">
+          <input type="text" id="api-username" placeholder="API Username">
+          <input type="password" id="api-token" placeholder="API Auth Token">
+        </div>
+        <div class="flex-row" style="margin-bottom:0;">
+          <input type="text" id="api-season" placeholder="Season (e.g. 2025)" value="2025">
+          <input type="text" id="api-event" placeholder="Event Code (e.g. USTXHOU)" value="USTXHOU">
+        </div>
+        <div class="flex-top" style="margin-bottom:0;">
+          Find your event code at <a href="https://ftcscout.org/events" target="_blank" style="color:var(--accent);">FTCScout</a>
+        </div>
+      </div>
+    </details>
 
     <details>
       <summary>Colors</summary>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-        <label>Background: <input type="color" id="c-bg" value="#f5f5f5"></label>
-        <label>Text: <input type="color" id="c-text" value="#ffffff"></label>
+        <label>Background: <input type="color" id="c-bg" value="#f8f9fa"></label>
+        <label>Text: <input type="color" id="c-text" value="#1a1a1a"></label>
         <label>Accent: <input type="color" id="c-accent" value="#9073da"></label>
-        <label>Red: <input type="color" id="c-red" value="#ff4444"></label>
-        <label>Blue: <input type="color" id="c-blue" value="#4488ff"></label>
+        <label>Red: <input type="color" id="c-red" value="#e63946"></label>
+        <label>Blue: <input type="color" id="c-blue" value="#0077b6"></label>
       </div>
     </details>
 
@@ -93,7 +110,7 @@
       <button onclick="addSlide('logo')">+ Logo</button>
       <button onclick="addSlide('text')">+ Text</button>
       <button onclick="addSlide('matches')">+ Matches</button>
-      <button onclick="addSlide('portfolio')">+ Portfolio (PDF)</button>
+      <button onclick="addSlide('portfolio')">+ Portfolio</button>
     </div>
 
     <div class="timeline" id="timeline"></div>
@@ -101,7 +118,7 @@
 
   <div id="display-screen" class="hidden">
     <div class="top-right">
-      <button onclick="editConfig()">Back</button>
+      <button class="back-btn" onclick="editConfig()" title="Back to Config">←</button>
     </div>
     <div id="slide-viewport" style="width:100%; height:100%;"></div>
   </div>
@@ -111,7 +128,8 @@
 
     let config = {
       teamName: "Robotics Team", teamNum: "12345", season: "2025", eventCode: "USTXHOU",
-      logo: "", colors: { bg: "#f5f5f5", text: "#ffffff", accent: "#9073da", red: "#ff4444", blue: "#4488ff" },
+      apiUsername: "", apiToken: "", logo: "", portfolioPdf: "",
+      colors: { bg: "#f8f9fa", text: "#1a1a1a", accent: "#9073da", red: "#e63946", blue: "#0077b6" },
       slides: []
     };
     let currentSlideIdx = 0;
@@ -123,8 +141,14 @@
       if (e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
     }
 
+    function handlePortfolioUpload(e) {
+      const reader = new FileReader();
+      reader.onload = () => config.portfolioPdf = reader.result;
+      if (e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
+    }
+
     function addSlide(type) {
-      config.slides.push({ id: Date.now(), type, duration: 10, content: "", pdfData: "" });
+      config.slides.push({ id: Date.now(), type, duration: 10, content: "" });
       renderTimeline();
     }
 
@@ -150,24 +174,15 @@
         card.innerHTML = `
           <strong>${slide.type.toUpperCase()}</strong>
           ${slide.type === 'text' ? `<input type="text" value="${slide.content}" placeholder="Slide text" onchange="config.slides[${i}].content=this.value">` : ''}
-          ${slide.type === 'portfolio' ? `<input type="file" accept="application/pdf" onchange="uploadPDF(event, ${i})">` : ''}
           <label>Secs: <input type="number" value="${slide.duration}" style="width:50px" onchange="config.slides[${i}].duration=parseInt(this.value)"></label>
           <div>
             <button onclick="moveSlide(${i}, -1)">←</button>
             <button onclick="moveSlide(${i}, 1)">→</button>
-            <button onclick="removeSlide(${i})" style="color:red">X</button>
+            <button onclick="removeSlide(${i})" style="color:var(--red)">X</button>
           </div>
         `;
         el.appendChild(card);
       });
-    }
-
-    function uploadPDF(e, idx) {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => config.slides[idx].pdfData = reader.result;
-      reader.readAsDataURL(file);
     }
 
     function updateTheme() {
@@ -191,6 +206,8 @@
       config.teamNum = document.getElementById('team-num').value;
       config.season = document.getElementById('api-season').value;
       config.eventCode = document.getElementById('api-event').value;
+      config.apiUsername = document.getElementById('api-username').value;
+      config.apiToken = document.getElementById('api-token').value;
 
       if (config.slides.length === 0) return alert('Add at least one slide!');
 
@@ -220,16 +237,16 @@
       } else if (slide.type === 'text') {
         slideDiv.innerHTML = `<h1 style="font-size:3em; text-align:center;">${slide.content}</h1>`;
       } else if (slide.type === 'portfolio') {
-        if (slide.pdfData) {
+        if (config.portfolioPdf) {
           const canvas = document.createElement('canvas');
           slideDiv.appendChild(canvas);
-          renderPDF(slide.pdfData, canvas);
+          renderPDF(config.portfolioPdf, canvas);
         } else {
-          slideDiv.innerHTML = '<h2>No PDF Uploaded</h2>';
+          slideDiv.innerHTML = '<h2>No Portfolio PDF Uploaded</h2>';
         }
       } else if (slide.type === 'matches') {
         slideDiv.innerHTML = `<h2>Match Schedule</h2><div class="matches-container"><div class="match-column" id="upcoming-matches"><h3>Upcoming</h3></div><div class="match-column" id="completed-matches"><h3>Completed</h3></div></div>`;
-        fetchMatchData();
+        fetchFTCMatchData();
       }
 
       viewport.appendChild(slideDiv);
@@ -249,36 +266,60 @@
       await page.render({ canvasContext: context, viewport }).promise;
     }
 
-    async function fetchMatchData() {
-      // Mock render demonstration structure; Replace standard URL string fetch call with serverless proxy or token headers local handling
-      const matches = [
-        { name: "Quals 1", red: ["12345", "99999"], blue: ["11111", "22222"], redScore: 120, blueScore: 90, status: "completed", winner: "red" },
-        { name: "Quals 4", red: ["12345", "33333"], blue: ["44444", "55555"], redScore: 0, blueScore: 0, status: "upcoming", winner: null }
-      ];
-
+    async function fetchFTCMatchData() {
       const upcomingEl = document.getElementById('upcoming-matches');
       const completedEl = document.getElementById('completed-matches');
 
-      matches.forEach(m => {
-        const card = document.createElement('div');
-        card.className = 'match-card';
+      if (!config.apiUsername || !config.apiToken) {
+        upcomingEl.innerHTML += "<p>Please add API Credentials in setup.</p>";
+        return;
+      }
+
+      const auth = btoa(`${config.apiUsername}:${config.apiToken}`);
+      const url = `https://ftc-api.firstinspires.org/v2.0/${config.season}/matches/${config.eventCode}`;
+
+      try {
+        const response = await fetch(url, {
+          headers: { 'Authorization': `Basic ${auth}` }
+        });
+        const data = await response.json();
         
-        let redClass = "red-alliance", blueClass = "blue-alliance";
-        if (m.status === 'completed') {
-          if (m.winner === 'red') { redClass += " winner"; blueClass += " loser"; }
-          else if (m.winner === 'blue') { blueClass += " winner"; redClass += " loser"; }
-          else { redClass += " tie"; blueClass += " tie"; }
-        }
+        if (!data.matches) return;
 
-        card.innerHTML = `
-          <strong>${m.name}</strong>
-          <div class="alliance ${redClass}"><span>Red: ${m.red.join(', ')}</span><span>${m.redScore}</span></div>
-          <div class="alliance ${blueClass}"><span>Blue: ${m.blue.join(', ')}</span><span>${m.blueScore}</span></div>
-        `;
+        data.matches.forEach(m => {
+          const redAlliance = m.teams.filter(t => t.station.startsWith('Red')).map(t => t.teamNumber);
+          const blueAlliance = m.teams.filter(t => t.station.startsWith('Blue')).map(t => t.teamNumber);
+          
+          const isCompleted = m.scoreRedFinal !== null && m.scoreBlueFinal !== null;
+          let winner = null;
+          if (isCompleted) {
+            if (m.scoreRedFinal > m.scoreBlueFinal) winner = 'red';
+            else if (m.scoreBlueFinal > m.scoreRedFinal) winner = 'blue';
+            else winner = 'tie';
+          }
 
-        if (m.status === 'upcoming' && upcomingEl) upcomingEl.appendChild(card);
-        else if (completedEl) completedEl.appendChild(card);
-      });
+          const card = document.createElement('div');
+          card.className = 'match-card';
+          
+          let redClass = "red-alliance", blueClass = "blue-alliance";
+          if (isCompleted) {
+            if (winner === 'red') { redClass += " winner"; blueClass += " loser"; }
+            else if (winner === 'blue') { blueClass += " winner"; redClass += " loser"; }
+            else { redClass += " tie"; blueClass += " tie"; }
+          }
+
+          card.innerHTML = `
+            <strong>${m.description || 'Match ' + m.matchNumber}</strong>
+            <div class="alliance ${redClass}"><span>Red: ${redAlliance.join(', ')}</span><span>${m.scoreRedFinal ?? '-'}</span></div>
+            <div class="alliance ${blueClass}"><span>Blue: ${blueAlliance.join(', ')}</span><span>${m.scoreBlueFinal ?? '-'}</span></div>
+          `;
+
+          if (!isCompleted && upcomingEl) upcomingEl.appendChild(card);
+          else if (isCompleted && completedEl) completedEl.appendChild(card);
+        });
+      } catch (err) {
+        upcomingEl.innerHTML += "<p>Error loading FTC matches.</p>";
+      }
     }
 
     function exportConfig() {
@@ -300,10 +341,12 @@
         if (newSeason) config.season = newSeason;
         if (newEvent) config.eventCode = newEvent;
         
-        document.getElementById('team-name').value = config.teamName;
-        document.getElementById('team-num').value = config.teamNum;
-        document.getElementById('api-season').value = config.season;
-        document.getElementById('api-event').value = config.eventCode;
+        document.getElementById('team-name').value = config.teamName || "";
+        document.getElementById('team-num').value = config.teamNum || "";
+        document.getElementById('api-season').value = config.season || "";
+        document.getElementById('api-event').value = config.eventCode || "";
+        document.getElementById('api-username').value = config.apiUsername || "";
+        document.getElementById('api-token').value = config.apiToken || "";
         renderTimeline();
       };
       reader.readAsText(file);
